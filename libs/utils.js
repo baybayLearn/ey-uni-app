@@ -105,9 +105,23 @@ export default utils = {
 			}
 		})
 	},
+	/**
+	 * 将当前字符串的首个字符变为大写
+	 * @param {Object} str 字符串
+	 */
+	toFirstUpper(str) {
+		return str.replace(/(\w)/, function(v) {
+			return v.toUpperCase()
+		})
+	},
+	/**
+	 * @param {Object} str 需要补全的字符
+	 * @param {Object} num 总共需要达到的字符个数
+	 * @param {Object} ch  使用什么字符来补充
+	 */
 	padStart(str, num, ch) {
 		str = String(str)
-		if (Object.prototype.toString.call("str".padStart) == '[object Function]') { //ES2017的方法
+		if (Object.prototype.toString.call(str.padStart) == '[object Function]') { //ES2017的方法
 			return str.padStart(num, ch) //向前不全字符，num返回字符串长度，ch补全的字符串
 		} else {
 			num += ''
@@ -142,6 +156,48 @@ export default utils = {
 		return n.replace(re, '$1,')
 	},
 	/**
+	 * 将数值 转为大写书写方式
+	 * @param {Object} num 数值
+	 */
+	toUpperNum(num) {
+		const numChar = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+		const unitChar = ['', '拾', '佰', '仟']
+		const unitSection = ['', '万', '亿', '万亿', '亿亿']
+		var returnStr = '' //返回值
+		var unitPos = 0
+		var unitSec = -1
+		var strIns = ''
+		var zero = true //最后一个值是不是0
+		while (num > 0) {
+			var n = num % 10 //找到最后一个值
+			if (n === 0) {
+				if (!zero) {
+					zero = true
+					returnStr = numChar[n] + returnStr
+				}
+				if (unitPos % 4 == 0) { //解决10010(万位是0时需要添加万)
+					unitSec++
+					unitPos = 0
+					returnStr = unitSection[unitSec] + returnStr
+				}
+			} else {
+				zero = false;
+				strIns = numChar[n];
+				if (unitPos % 4 == 0) {
+					unitSec++
+					unitPos = 0
+					strIns += unitSection[unitSec]
+				} else {
+					strIns += unitChar[unitPos];
+				}
+				returnStr = strIns + returnStr
+			}
+			unitPos++
+			num = Math.floor(num / 10); //重新给num赋值，以便下次循环找到前一个值
+		}
+		return returnStr
+	},
+	/**
 	 * 将日期字符串 转为日期对象
 	 * @param {Object} str 日期字符串，如：2021-03-31
 	 */
@@ -149,17 +205,73 @@ export default utils = {
 		str = str.replace(/-/g, '/')
 		return new Date(str)
 	},
+	/**
+	 * 将服务器返回的时间改为时间戳
+	 * @param {Object} serverTimeString 服务返回的时间
+	 */
+	getTimestamp: function(serverTimeString) {
+		if (!serverTimeString) return 0
+		if (!this.isString(serverTimeString)) {
+			serverTimeString = String(serverTimeString)
+		}
+		let m = serverTimeString.match(/Date\(([\d-]+)\)/)
+		if (m && m[1]) {
+			return parseInt(m[1])
+		}
+		return 0
+	},
+	/** 
+	 * @param {Object} date 日期字符串或日期类型
+	 * @param {Object} format
+	 */
 	formatDate(date, format) {
 		if (Object.prototype.toString.call(date) === '[object String]') {
 			date = this.toDate(date) //若是字符串，先转为日期
 		} else if (Object.prototype.toString.call(date) !== '[object Date]') {
 			return date //不是日期，直接返回传入的值
 		}
+		const weeks = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
 		let cfg = {
 			yyyy: date.getFullYear(), //4位年，如：2021
 			yy: date.getFullYear().substring(2), //2位年，如：21 
 			M: date.getMonth() + 1, //月 : 如果1位的时候不补0
-			MM:
+			MM: this.padStart(date.getMonth() + 1, 2, 0),
+			d: date.getDate(), // 日 : 如果1位的时候不补0
+			dd: this.padStart(date.getDate(), 2, 0), // 日 : 如果1位的时候补0
+			h: date.getHours(),
+			hh: this.padStart(date.getHours(), 2, 0),
+			m: date.getMinutes(),
+			mm: this.padStart(date.getMinutes(), 2, 0),
+			s: this.getSeconds(),
+			ss: this.padStart(date.getSeconds(), 2, 0),
+			W: weeks[date.getDay()]
 		}
-	}
+		format || (format = 'yyyy-MM-dd hh:mm:ss')
+		return format.replace(/([a-z])(\1)*/ig, function(m) {
+			return cfg[m]
+		})
+	},
+	/**
+	 * 时间比较
+	 * @param 第一个时间
+	 * @param 第二个时间
+	 * @param 比较的单位： y 年,q  季度,m  月,d  日,w  周,h  小时,n  分钟,s  秒,ms  毫秒
+	 * @returns {*}
+	 */
+	dateDiff: function(objDate1, objDate2, interval) {
+		let d = objDate1
+		let i = {}
+		let t = d.getTime()
+		let t2 = objDate2.getTime()
+		i['y'] = objDate2.getFullYear() - d.getFullYear()
+		i['q'] = i['y'] * 4 + Math.floor(objDate2.getMonth() / 4) - Math.floor(d.getMonth() / 4)
+		i['m'] = i['y'] * 12 + objDate2.getMonth() - d.getMonth()
+		i['ms'] = objDate2.getTime() - d.getTime()
+		i['w'] = Math.floor((t2 + 345600000) / (604800000)) - Math.floor((t + 345600000) / (604800000))
+		i['d'] = Math.floor(t2 / 86400000) - Math.floor(t / 86400000)
+		i['h'] = Math.floor(t2 / 3600000) - Math.floor(t / 3600000)
+		i['n'] = Math.floor(t2 / 60000) - Math.floor(t / 60000)
+		i['s'] = Math.floor(t2 / 1000) - Math.floor(t / 1000)
+		return i[interval]
+	},
 }
